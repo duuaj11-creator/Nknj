@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Төлдерді тап</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Arial Rounded MT Bold", Arial, sans-serif;
+      background: linear-gradient(180deg, #e0f7ff 0%, #f0ffe2 100%);
+      overflow-x: hidden;
+    }
+
+    .animal-card {
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .animal-card:hover {
+      transform: translateY(-5px) scale(1.03);
+      box-shadow: 0 12px 25px rgba(0, 0, 0, 0.12);
+    }
+
+    .animal-card:active {
+      cursor: grabbing;
+      transform: scale(0.96);
+    }
+
+    .animal-card.selected {
+      outline: 5px solid #facc15;
+      transform: translateY(-7px) scale(1.04);
+    }
+
+    .animal-card.used {
+      opacity: 0.35;
+      pointer-events: none;
+      filter: grayscale(0.5);
+    }
+
+    .parent-area {
+      position: relative;
+      min-height: 300px;
+      border: 4px dashed #86c96b;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.85);
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .parent-area.drag-over {
+      background: #e7ffd9;
+      border-color: #22c55e;
+    }
+
+    .animal-img {
+      width: 100%;
+      height: 190px;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .placed-baby {
+      width: 125px;
+      height: 125px;
+      object-fit: contain;
+      position: absolute;
+      right: 4px;
+      bottom: 2px;
+      display: none;
+      filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.12));
+      animation: popIn 0.45s ease-out;
+      pointer-events: none;
+    }
+
+    .parent-area.correct {
+      border-color: #22c55e;
+      border-style: solid;
+      background: #f0fff0;
+    }
+
+    @keyframes popIn {
+      0% {
+        opacity: 0;
+        transform: scale(0.3) rotate(-10deg);
+      }
+
+      70% {
+        transform: scale(1.12) rotate(4deg);
+      }
+
+      100% {
+        opacity: 1;
+        transform: scale(1) rotate(0);
+      }
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    .modal.hidden {
+      display: none;
+    }
+
+    .modal-box {
+      width: min(440px, 100%);
+      padding: 32px 22px;
+      text-align: center;
+      border-radius: 30px;
+      background: white;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+      animation: popIn 0.4s ease-out;
+      position: relative;
+      z-index: 102;
+    }
+
+    .fireworks {
+      position: fixed;
+      inset: 0;
+      z-index: 101;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: firework 1.4s ease-out forwards;
+    }
+
+    @keyframes firework {
+      0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(0.5);
+      }
+
+      100% {
+        opacity: 0;
+        transform: translate(var(--x), var(--y)) scale(1.5);
+      }
+    }
+
+    .main-title {
+      text-shadow: 2px 3px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .next-button {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      box-shadow: 0 5px 0 #15803d;
+      transition: transform 0.15s;
+    }
+
+    .next-button:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #15803d;
+    }
+
+    @media (max-width: 640px) {
+      .animal-img {
+        height: 145px;
+      }
+
+      .parent-area {
+        min-height: 245px;
+      }
+
+      .placed-baby {
+        width: 95px;
+        height: 95px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Дұрыс жауапқа арналған дыбыс -->
+  <audio id="successSound" src="sounds/jaraysyn.mp3" preload="auto"></audio>
+
+  <div class="max-w-6xl mx-auto px-4 py-6 md:py-10">
+
+    <!-- Тақырып -->
+    <header class="text-center mb-7">
+      <h1 class="main-title text-4xl md:text-6xl font-black text-green-700 mb-3">
+        🐣 Төлдерді тап!
+      </h1>
+
+      <p class="text-lg md:text-2xl font-bold text-gray-700">
+        Әр төлді өз енесімен сәйкестендір!
+      </p>
+    </header>
+
+    <!-- Деңгей және ұпай -->
+    <div class="flex flex-wrap items-center justify-center gap-3 mb-7">
+      <div class="rounded-full bg-white px-6 py-3 shadow font-bold text-green-700">
+        Деңгей:
+        <span id="levelNumber">1</span>/4
+      </div>
+
+      <div class="rounded-full bg-white px-6 py-3 shadow font-bold text-orange-600">
+        Дұрыс жауап:
+        <span id="score">0</span>
+      </div>
+
+      <button
+        id="restartButton"
+        class="rounded-full bg-orange-400 hover:bg-orange-500 text-white font-bold px-6 py-3 shadow"
+        type="button"
+      >
+        🔄 Қайта бастау
+      </button>
+    </div>
+
+    <!-- Нұсқаулық -->
+    <div class="text-center mb-6">
+      <p
+        id="instruction"
+        class="inline-block rounded-2xl bg-yellow-100 border-2 border-yellow-300 px-5 py-3 text-lg md:text-xl font-bold text-yellow-900"
+      >
+        Құлынды тауып, жылқының қасына апар!
+      </p>
+    </div>
+
+    <!-- Ене -->
+    <section class="mb-9">
+      <h2 class="text-center text-2xl md:text-3xl font-black text-green-800 mb-4">
+        🌿 Енесі
+      </h2>
+
+      <div class="flex justify-center">
+        <div
+          id="parentArea"
+          class="parent-area w-full max-w-md p-4 flex flex-col items-center justify-center"
+          data-parent=""
+          role="button"
+          tabindex="0"
+          aria-label="Төлді осы жерге апар"
+        >
+          <img
+            id="parentImage"
+            class="animal-img"
+            src="images/jylqy.png"
+            alt="Жылқы"
+            draggable="false"
+          >
+
+          <div
+            id="parentName"
+            class="text-center text-2xl font-black text-green-800 mt-2"
+          >
+            Жылқы
+          </div>
+
+          <!-- Дұрыс жауап берілген төл осы жерде көрсетіледі -->
+          <img
+            id="placedBabyImg"
+            class="placed-baby"
+            src=""
+            alt=""
+            draggable="false"
+          >
+        </div>
+      </div>
+
+      <p class="text-center text-gray-600 mt-3 font-semibold">
+        👆 Төлдің суретін осы жерге апар немесе алдымен төлді бас.
+      </p>
+    </section>
+
+    <!-- Төлдер -->
+    <section>
+      <h2 class="text-center text-2xl md:text-3xl font-black text-orange-700 mb-4">
+        🐾 Төлдер
+      </h2>
+
+      <div
+        id="babiesContainer"
+        class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6"
+      ></div>
+    </section>
+
+  </div>
+
+  <!-- Жарайсың терезесі -->
+  <div id="successModal" class="modal hidden">
+    <div class="modal-box">
+      <div id="modalEmoji" class="text-6xl mb-3">🎉</div>
+
+      <h2
+        id="modalTitle"
+        class="text-4xl font-black text-green-600 mb-3"
+      >
+        Жарайсың!
+      </h2>
+
+      <p
+        id="modalText"
+        class="text-xl font-bold text-gray-700 mb-6"
+      >
+        Дұрыс таптың!
+      </p>
+
+      <button
+        id="nextButton"
+        class="next-button rounded-full text-white text-xl font-black px-8 py-4"
+        type="button"
+      >
+        Келесі ➜
+      </button>
+    </div>
+  </div>
+
+  <!-- Отшашу -->
+  <div id="fireworks" class="fireworks"></div>
+
+  <script>
+    // ==========================================
+    // ОЙЫН ДЕРЕКТЕРІ
+    // ==========================================
+
+    const levels = [
+      {
+        parent: "Жылқы",
+        parentImage: "images/jylqy.png",
+        baby: "Құлын",
+        babyImage: "images/qulyn.png",
+        instruction: "Құлынды тауып, жылқының қасына апар!"
+      },
+      {
+        parent: "Қой",
+        parentImage: "images/qoy.png",
+        baby: "Қозы",
+        babyImage: "images/kozy.png",
+        instruction: "Қозыны тауып, қойдың қасына апар!"
+      },
+      {
+        parent: "Сиыр",
+        parentImage: "images/siyr.png",
+        baby: "Бұзау",
+        babyImage: "images/buzau.png",
+        instruction: "Бұзауды тауып, сиырдың қасына апар!"
+      },
+      {
+        parent: "Түйе",
+        parentImage: "images/tuyre.png",
+        baby: "Бота",
+        babyImage: "images/bota.png",
+        instruction: "Ботаны тауып, түйенің қасына апар!"
+      }
+    ];
+
+    // ==========================================
+    // HTML ЭЛЕМЕНТТЕРІ
+    // ==========================================
+
+    const parentArea = document.getElementById("parentArea");
+    const parentImage = document.getElementById("parentImage");
+    const parentName = document.getElementById("parentName");
+    const placedBabyImg = document.getElementById("placedBabyImg");
+
+    const babiesContainer = document.getElementById("babiesContainer");
+    const instruction = document.getElementById("instruction");
+
+    const levelNumber = document.getElementById("levelNumber");
+    const scoreElement = document.getElementById("score");
+
+    const successModal = document.getElementById("successModal");
+    const modalEmoji = document.getElementById("modalEmoji");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalText = document.getElementById("modalText");
+    const nextButton = document.getElementById("nextButton");
+
+    const successSound = document.getElementById("successSound");
+    const fireworks = document.getElementById("fireworks");
+
+    // ==========================================
+    // ОЙЫННЫҢ КҮЙІ
+    // ==========================================
+
+    let currentLevel = 0;
+    let score = 0;
+    let isAnswered = false;
+    let selectedBaby = null;
+
+    // ==========================================
+    // ТӨЛДЕРДІ АРАЛАСТЫРУ
+    // ==========================================
+
+    function shuffle(array) {
+      const result = [...array];
+
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+
+      return result;
+    }
+
+    // ==========================================
+    // ДЕҢГЕЙДІ КӨРСЕТУ
+    // ==========================================
+
+    function loadLevel() {
+      isAnswered = false;
+      selectedBaby = null;
+
+      const level = levels[currentLevel];
+
+      levelNumber.textContent = currentLevel + 1;
+      scoreElement.textContent = score;
+
+      instruction.textContent = level.instruction;
+
+      parentImage.src = level.parentImage;
+      parentImage.alt = level.parent;
+
+      parentName.textContent = level.parent;
+
+      parentArea.dataset.parent = level.parent;
+      parentArea.classList.remove("correct", "drag-over");
+
+      placedBabyImg.style.display = "none";
+      placedBabyImg.src = "";
+      placedBabyImg.alt = "";
+
+      babiesContainer.innerHTML = "";
+
+      // Барлық төлдердің тізімі
+      const allBabies = shuffle(levels);
+
+      allBabies.forEach((babyData) => {
+        const card = document.createElement("div");
+
+        card.className =
+          "animal-card bg-white rounded-3xl shadow-lg p-3 text-center";
+
+        card.draggable = true;
+        card.dataset.baby = babyData.baby;
+
+        card.innerHTML = `
+          <img
+            src="${babyData.babyImage}"
+            alt="${babyData.baby}"
+            class="w-full h-32 md:h-40 object-contain"
+            draggable="false"
+          >
+
+          <div class="text-lg md:text-xl font-black text-orange-700 mt-2">
+            ${babyData.baby}
+          </div>
+        `;
+
+        // Компьютерде сүйреп апару
+        card.addEventListener("dragstart", (event) => {
+          if (isAnswered) {
+            event.preventDefault();
+            return;
+          }
+
+          selectedBaby = card;
+
+          event.dataTransfer.setData(
+            "text/plain",
+            babyData.baby
+          );
+
+          event.dataTransfer.effectAllowed = "move";
+        });
+
+        card.addEventListener("dragend", () => {
+          parentArea.classList.remove("drag-over");
+        });
+
+        // Телефонда немесе планшетте төлді басу
+        card.addEventListener("click", () => {
+          if (isAnswered || card.classList.contains("used")) {
+            return;
+          }
+
+          document
+            .querySelectorAll(".animal-card")
+            .forEach((item) => item.classList.remove("selected"));
+
+          selectedBaby = card;
+          card.classList.add("selected");
+
+          instruction.textContent =
+            babyData.baby + " таңдалды. Енесінің суретіне бас!";
+        });
+
+        babiesContainer.appendChild(card);
+      });
+    }
+
+    // ==========================================
+    // ДҰРЫС ТӨЛДІ ТЕКСЕРУ
+    // ==========================================
+
+    function checkAnswer(babyName, card) {
+      if (isAnswered) {
+        return;
+      }
+
+      const level = levels[currentLevel];
+
+      if (babyName !== level.baby) {
+        instruction.textContent =
+          "Әлі дұрыс емес! Тағы бір рет байқап көр! 😊";
+
+        if (card) {
+          card.classList.add("selected");
+
+          setTimeout(() => {
+            card.classList.remove("selected");
+          }, 500);
+        }
+
+        return;
+      }
+
+      // Дұрыс жауап
+      isAnswered = true;
+      score++;
+
+      scoreElement.textContent = score;
+
+      if (card) {
+        card.classList.remove("selected");
+        card.classList.add("used");
+      }
+
+      parentArea.classList.add("correct");
+
+      instruction.textContent =
+        "Керемет! " + level.baby + " өз енесін тапты!";
+
+      // Төлдің суретін енесінің қасына шығару
+      showBabyBesideMother(level);
+    }
+
+    // ==========================================
+    // ТӨЛДІ ЕНЕСІНІҢ ҚАСЫНА ШЫҒАРУ
+    // ==========================================
+
+    function showBabyBesideMother(level) {
+      placedBabyImg.onload = null;
+      placedBabyImg.onerror = null;
+
+      placedBabyImg.style.display = "none";
+      placedBabyImg.src = level.babyImage;
+      placedBabyImg.alt = level.baby;
+
+      function showBaby() {
+        placedBabyImg.style.display = "block";
+
+        // Сурет көрінгеннен кейін дыбыс пен терезені ашу
+        setTimeout(() => {
+          playSuccessSound();
+          createFireworks();
+          showSuccessModal();
+        }, 700);
+      }
+
+      placedBabyImg.onload = showBaby;
+
+      placedBabyImg.onerror = () => {
+        // Сурет жүктелмесе де ойын жалғаса береді
+        setTimeout(() => {
+          playSuccessSound();
+          createFireworks();
+          showSuccessModal();
+        }, 700);
+      };
+
+      // Сурет кэштен бірден жүктеліп қойған жағдай
+      if (
+        placedBabyImg.complete &&
+        placedBabyImg.naturalWidth > 0
+      ) {
+        placedBabyImg.onload = null;
+        placedBabyImg.onerror = null;
+        showBaby();
+      }
+    }
+
+    // ==========================================
+    // JARAYSYN.MP3 ДЫБЫСЫН ОЙНАТУ
+    // ==========================================
+
+    function playSuccessSound() {
+      successSound.currentTime = 0;
+
+      const playPromise = successSound.play();
+
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.warn(
+            "Дыбысты ойнату мүмкін болмады. Файлдың жолын тексер:",
+            error
+          );
+        });
+      }
+    }
+
+    // ==========================================
+    // «ЖАРАЙСЫҢ!» ТЕРЕЗЕСІ
+    // ==========================================
+
+    function showSuccessModal() {
+      const isLastLevel = currentLevel === levels.length - 1;
+
+      if (isLastLevel) {
+        modalEmoji.textContent = "🏆";
+        modalTitle.textContent = "Жарайсың!";
+        modalText.textContent =
+          "Барлық төлдерді дұрыс таптың! Сен өте зерексің!";
+
+        nextButton.textContent = "Қайта ойнау 🔄";
+      } else {
+        modalEmoji.textContent = "🎉";
+        modalTitle.textContent = "Жарайсың!";
+        modalText.textContent =
+          "Дұрыс таптың! " +
+          levels[currentLevel].baby +
+          " өз енесін тапты!";
+
+        nextButton.textContent = "Келесі ➜";
+      }
+
+      successModal.classList.remove("hidden");
+    }
+
+    // ==========================================
+    // ОТШАШУ
+    // ==========================================
+
+    function createFireworks() {
+      fireworks.innerHTML = "";
+
+      const colors = [
+        "#ff4757",
+        "#ffa502",
+        "#2ed573",
+        "#1e90ff",
+        "#e056fd",
+        "#f9ca24"
+      ];
+
+      for (let i = 0; i < 65; i++) {
+        const particle = document.createElement("div");
+
+        particle.className = "particle";
+
+        particle.style.left = Math.random() * 100 + "%";
+        particle.style.top = Math.random() * 75 + "%";
+
+        particle.style.backgroundColor =
+          colors[Math.floor(Math.random() * colors.length)];
+
+        particle.style.setProperty(
+          "--x",
+          (Math.random() - 0.5) * 350 + "px"
+        );
+
+        particle.style.setProperty(
+          "--y",
+          (Math.random() - 0.5) * 350 + "px"
+        );
+
+        particle.style.animationDelay =
+          Math.random() * 0.4 + "s";
+
+        fireworks.appendChild(particle);
+      }
+
+      setTimeout(() => {
+        fireworks.innerHTML = "";
+      }, 2200);
+    }
+
+    // ==========================================
+    // ЕНЕСІНІҢ СУРЕТІНЕ ТӨЛДІ АПАРУ
+    // ==========================================
+
+    parentArea.addEventListener("dragover", (event) => {
+      event.preventDefault();
+
+      if (!isAnswered) {
+        parentArea.classList.add("drag-over");
+      }
+    });
+
+    parentArea.addEventListener("dragleave", () => {
+      parentArea.classList.remove("drag-over");
+    });
+
+    parentArea.addEventListener("drop", (event) => {
+      event.preventDefault();
+
+      parentArea.classList.remove("drag-over");
+
+      if (isAnswered) {
+        return;
+      }
+
+      const babyName =
+        event.dataTransfer.getData("text/plain");
+
+      const card = [...document.querySelectorAll(".animal-card")]
+        .find((item) => item.dataset.baby === babyName);
+
+      if (babyName) {
+        checkAnswer(babyName, card);
+      }
+    });
+
+    // Телефонда: алдымен төлді, содан кейін енесін басу
+    parentArea.addEventListener("click", () => {
+      if (isAnswered || !selectedBaby) {
+        return;
+      }
+
+      checkAnswer(
+        selectedBaby.dataset.baby,
+        selectedBaby
+      );
+    });
+
+    // Пернетақтамен басқару
+    parentArea.addEventListener("keydown", (event) => {
+      if (
+        (event.key === "Enter" || event.key === " ") &&
+        selectedBaby &&
+        !isAnswered
+      ) {
+        event.preventDefault();
+
+        checkAnswer(
+          selectedBaby.dataset.baby,
+          selectedBaby
+        );
+      }
+    });
+
+    // ==========================================
+    // КЕЛЕСІ ДЕҢГЕЙ
+    // ==========================================
+
+    nextButton.addEventListener("click", () => {
+      successModal.classList.add("hidden");
+      fireworks.innerHTML = "";
+
+      if (currentLevel < levels.length - 1) {
+        currentLevel++;
+        loadLevel();
+      } else {
+        // Ойын аяқталса, қайта бастау
+        currentLevel = 0;
+        score = 0;
+        loadLevel();
+      }
+    });
+
+    // ==========================================
+    // ҚАЙТА БАСТАУ
+    // ==========================================
+
+    document
+      .getElementById("restartButton")
+      .addEventListener("click", () => {
+        currentLevel = 0;
+        score = 0;
+
+        successModal.classList.add("hidden");
+        fireworks.innerHTML = "";
+
+        loadLevel();
+      });
+
+    // ==========================================
+    // ОЙЫНДЫ БАСТАУ
+    // ==========================================
+
+    loadLevel();
+  </script>
+
+</body>
+</html>
